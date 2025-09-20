@@ -1,0 +1,155 @@
+# backend/docker-compose.yml
+version: '3.8'
+
+services:
+  # API Gateway - Backend for Frontend (BFF)
+  api-gateway:
+    build:
+      context: ./api-gateway
+      dockerfile: Dockerfile
+    container_name: ecommerce_api_gateway
+    ports:
+      - "8000:8000"
+    environment:
+      - PYTHONDONTWRITEBYTECODE=1
+      - PYTHONUNBUFFERED=1
+      - AUTH_SERVICE_URL=http://auth-service:8001
+      - PRODUCT_SERVICE_URL=http://product-service:8002
+      - ORDER_SERVICE_URL=http://order-service:8003
+    depends_on:
+      - auth-service
+      - product-service
+      - order-service
+    networks:
+      - ecommerce-network
+    restart: unless-stopped
+
+  # Authentication Service
+  auth-service:
+    build:
+      context: ./auth-service
+      dockerfile: Dockerfile
+    container_name: ecommerce_auth_service
+    ports:
+      - "8001:8001"
+    environment:
+      - PYTHONDONTWRITEBYTECODE=1
+      - PYTHONUNBUFFERED=1
+      - DATABASE_URL=postgresql://postgres:password@postgres-auth:5432/auth_db
+      - JWT_SECRET_KEY=${JWT_SECRET_KEY:-your-secret-key-change-in-production}
+      - JWT_ALGORITHM=HS256
+      - ACCESS_TOKEN_EXPIRE_MINUTES=30
+    depends_on:
+      - postgres-auth
+    networks:
+      - ecommerce-network
+    restart: unless-stopped
+
+  # Product Catalog Service
+  product-service:
+    build:
+      context: ./product-service
+      dockerfile: Dockerfile
+    container_name: ecommerce_product_service
+    ports:
+      - "8002:8002"
+    environment:
+      - PYTHONDONTWRITEBYTECODE=1
+      - PYTHONUNBUFFERED=1
+      - DATABASE_URL=postgresql://postgres:password@postgres-products:5432/products_db
+    depends_on:
+      - postgres-products
+    networks:
+      - ecommerce-network
+    restart: unless-stopped
+
+  # Order Management Service
+  order-service:
+    build:
+      context: ./order-service
+      dockerfile: Dockerfile
+    container_name: ecommerce_order_service
+    ports:
+      - "8003:8003"
+    environment:
+      - PYTHONDONTWRITEBYTECODE=1
+      - PYTHONUNBUFFERED=1
+      - DATABASE_URL=postgresql://postgres:password@postgres-orders:5432/orders_db
+      - PRODUCT_SERVICE_URL=http://product-service:8002
+      - AUTH_SERVICE_URL=http://auth-service:8001
+    depends_on:
+      - postgres-orders
+    networks:
+      - ecommerce-network
+    restart: unless-stopped
+
+  # Authentication Database
+  postgres-auth:
+    image: postgres:15-alpine
+    container_name: ecommerce_postgres_auth
+    environment:
+      - POSTGRES_DB=auth_db
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=password
+    volumes:
+      - postgres_auth_data:/var/lib/postgresql/data
+    networks:
+      - ecommerce-network
+    restart: unless-stopped
+
+  # Products Database
+  postgres-products:
+    image: postgres:15-alpine
+    container_name: ecommerce_postgres_products
+    environment:
+      - POSTGRES_DB=products_db
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=password
+    volumes:
+      - postgres_products_data:/var/lib/postgresql/data
+    networks:
+      - ecommerce-network
+    restart: unless-stopped
+
+  # Orders Database
+  postgres-orders:
+    image: postgres:15-alpine
+    container_name: ecommerce_postgres_orders
+    environment:
+      - POSTGRES_DB=orders_db
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=password
+    volumes:
+      - postgres_orders_data:/var/lib/postgresql/data
+    networks:
+      - ecommerce-network
+    restart: unless-stopped
+
+  # Nginx Reverse Proxy (Production)
+  nginx:
+    image: nginx:alpine
+    container_name: ecommerce_nginx
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/ssl:/etc/nginx/ssl:ro
+    depends_on:
+      - api-gateway
+    networks:
+      - ecommerce-network
+    restart: unless-stopped
+    profiles:
+      - production
+
+# Named volumes for database persistence
+volumes:
+  postgres_auth_data:
+  postgres_products_data:
+  postgres_orders_data:
+
+# Network for service communication
+networks:
+  ecommerce-network:
+    driver: bridge

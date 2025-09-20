@@ -1,0 +1,50 @@
+# backend/docker-compose.override.yml
+# Development-specific overrides
+version: '3.8'
+
+services:
+  api-gateway:
+    volumes:
+      # Enable hot reloading by mounting source code
+      - ./api-gateway/app:/app/app:ro
+    environment:
+      - RELOAD=true
+      - LOG_LEVEL=debug
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+
+  auth-service:
+    volumes:
+      - ./auth-service/app:/app/app:ro
+    environment:
+      - RELOAD=true
+      - LOG_LEVEL=debug
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8001 --reload
+
+  product-service:
+    volumes:
+      - ./product-service/app:/app/app:ro
+    environment:
+      - RELOAD=true
+      - LOG_LEVEL=debug
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8002 --reload
+
+  order-service:
+    volumes:
+      - ./order-service/app:/app/app:ro
+    environment:
+      - RELOAD=true
+      - LOG_LEVEL=debug
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8003 --reload
+
+  # Database ports exposed for development/debugging
+  postgres-auth:
+    ports:
+      - "5432:5432"
+
+  postgres-products:
+    ports:
+      - "5433:5432"
+
+  postgres-orders:
+    ports:
+      - "5434:5432"
